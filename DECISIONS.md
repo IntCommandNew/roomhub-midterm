@@ -30,9 +30,10 @@ POST /api/rooms/{roomId}/bookings -> RoomsEndpoints.MapRooms -> CreateBookingEnd
 ## 5. What you rejected from what the AI gave you
 Give a concrete example of code or an idea proposed by the AI that you corrected or rejected, and say why.
 
-_(your answer here)_
+It sugested case-insensitively for R9, and I chose case-sensitive.
 
 ## 6. If you had 30 more minutes
 What would you improve and what risk did you leave in the project?
 
-_(your answer here)_
+- Unit tests for Room.Book and DateRange, using a fake TimeProvider
+- EF migrations instead of EnsureCreated
