@@ -54,6 +54,162 @@ POST {{baseUrl}}/api/bookings/{{bookingId}}/cancel
 
 ### 8. Add your own requests here for the rules in ASSIGNMENT.md
 
+### ---------- R1: room name non-empty, capacity > 0 ----------
+
+### R1.1 Empty name (expected: 400)
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "   ",
+  "capacity": 10
+}
+
+### R1.2 Capacity 0 (expected: 400)
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "Room zero",
+  "capacity": 0
+}
+
+### ---------- R2-R4 (room from request 1, capacity 10) ----------
+
+### Missing room: 404 before any validation (expected: 404)
+POST {{baseUrl}}/api/rooms/00000000-0000-0000-0000-000000000001/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "",
+  "startUtc": "2030-01-10T12:00:00Z",
+  "endUtc": "2030-01-10T10:00:00Z",
+  "attendees": 0
+}
+
+### R2 Empty bookedBy (expected: 400)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "",
+  "startUtc": "2030-01-11T10:00:00Z",
+  "endUtc": "2030-01-11T11:00:00Z",
+  "attendees": 4
+}
+
+### R3 End not after start (expected: 400)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "ana",
+  "startUtc": "2030-01-11T10:00:00Z",
+  "endUtc": "2030-01-11T10:00:00Z",
+  "attendees": 4
+}
+
+### R4.1 Attendees 0 (expected: 400)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "ana",
+  "startUtc": "2030-01-11T10:00:00Z",
+  "endUtc": "2030-01-11T11:00:00Z",
+  "attendees": 0
+}
+
+### R4.2 Attendees above capacity (expected: 400)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "ana",
+  "startUtc": "2030-01-11T10:00:00Z",
+  "endUtc": "2030-01-11T11:00:00Z",
+  "attendees": 11
+}
+
+### ---------- R5, R6 ----------
+
+### R5 Start in the past (expected: 400)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "ana",
+  "startUtc": "2020-01-01T10:00:00Z",
+  "endUtc": "2020-01-01T11:00:00Z",
+  "attendees": 4
+}
+
+### R6.1 Exactly 4 hours (expected: 201)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "ion",
+  "startUtc": "2030-01-12T08:00:00Z",
+  "endUtc": "2030-01-12T12:00:00Z",
+  "attendees": 4
+}
+
+### R6.2 More than 4 hours (expected: 400)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "ion",
+  "startUtc": "2030-01-13T08:00:00Z",
+  "endUtc": "2030-01-13T12:01:00Z",
+  "attendees": 4
+}
+
+### ---------- R7, R8 (booking from request 4 is 10:00-12:00 and was cancelled in request 7) ----------
+
+### R7.1 Cancelled booking frees its interval: same 10:00-12:00 again (expected: 201)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "maria",
+  "startUtc": "2030-01-10T10:00:00Z",
+  "endUtc": "2030-01-10T12:00:00Z",
+  "attendees": 4
+}
+
+### R7.2 Touching interval 12:00-14:00 does not overlap (expected: 201)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "bogdan",
+  "startUtc": "2030-01-10T12:00:00Z",
+  "endUtc": "2030-01-10T14:00:00Z",
+  "attendees": 4
+}
+
+### R7.3 Overlapping 11:00-13:00 with active bookings (expected: 409)
+POST {{baseUrl}}/api/rooms/{{roomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "radu",
+  "startUtc": "2030-01-10T11:00:00Z",
+  "endUtc": "2030-01-10T13:00:00Z",
+  "attendees": 4
+}
+
+### R8.1 Cancel an already cancelled booking (expected: 409)
+POST {{baseUrl}}/api/bookings/{{bookingId}}/cancel
+
+### R8.2 Cancel a missing booking (expected: 404)
+POST {{baseUrl}}/api/bookings/00000000-0000-0000-0000-000000000001/cancel
+
+### R8.3 Get the cancelled booking (expected: 200, status "Cancelled")
+GET {{baseUrl}}/api/bookings/{{bookingId}}
+
 # NOTE: data is stored in SQLite and R9 counts bookings per person across ALL rooms,
 # so delete src/RoomHub.Api/roomhub.db before running this file a second time.
 
