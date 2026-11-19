@@ -1,3 +1,4 @@
+using RoomHub.Api.Common.Cqrs;
 using RoomHub.Api.Endpoints;
 using RoomHub.Api.Middleware;
 using RoomHub.Api.Repositories;
@@ -10,6 +11,8 @@ builder.Services.AddSingleton<RoomRepository>();
 builder.Services.AddSingleton<BookingRepository>();
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BookingService>();
+
+builder.Services.AddHandlers(typeof(Program).Assembly);
 
 var app = builder.Build();
 
