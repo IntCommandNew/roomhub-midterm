@@ -53,3 +53,216 @@ Content-Type: application/json
 POST {{baseUrl}}/api/bookings/{{bookingId}}/cancel
 
 ### 8. Add your own requests here for the rules in ASSIGNMENT.md
+
+# NOTE: data is stored in SQLite and R9 counts bookings per person across ALL rooms,
+# so delete src/RoomHub.Api/roomhub.db before running this file a second time.
+
+### ---------- R9: max 2 active bookings per bookedBy per UTC day ----------
+
+### R9.1 Create room A
+# @name r9RoomA
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "R9 room A",
+  "capacity": 10
+}
+
+### R9.2 Create room B
+# @name r9RoomB
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "R9 room B",
+  "capacity": 10
+}
+
+###
+@r9RoomAId = {{r9RoomA.response.body.$.id}}
+@r9RoomBId = {{r9RoomB.response.body.$.id}}
+
+### R9.3 First booking of "carla" that day, room A (expected: 201)
+# @name r9First
+POST {{baseUrl}}/api/rooms/{{r9RoomAId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "carla",
+  "startUtc": "2030-02-01T08:00:00Z",
+  "endUtc": "2030-02-01T09:00:00Z",
+  "attendees": 2
+}
+
+### R9.4 Second booking same day, other room B (expected: 201)
+POST {{baseUrl}}/api/rooms/{{r9RoomBId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "carla",
+  "startUtc": "2030-02-01T10:00:00Z",
+  "endUtc": "2030-02-01T11:00:00Z",
+  "attendees": 2
+}
+
+### R9.5 Third booking same UTC day (expected: 409)
+POST {{baseUrl}}/api/rooms/{{r9RoomAId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "carla",
+  "startUtc": "2030-02-01T20:00:00Z",
+  "endUtc": "2030-02-01T21:00:00Z",
+  "attendees": 2
+}
+
+### R9.6 Same person, next day (expected: 201, different days are independent)
+POST {{baseUrl}}/api/rooms/{{r9RoomAId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "carla",
+  "startUtc": "2030-02-02T08:00:00Z",
+  "endUtc": "2030-02-02T09:00:00Z",
+  "attendees": 2
+}
+
+### R9.7 Another person, same day (expected: 201, the limit is per bookedBy)
+POST {{baseUrl}}/api/rooms/{{r9RoomBId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "dan",
+  "startUtc": "2030-02-01T20:00:00Z",
+  "endUtc": "2030-02-01T21:00:00Z",
+  "attendees": 2
+}
+
+###
+@r9FirstId = {{r9First.response.body.$.id}}
+
+### R9.8 Cancel carla's first booking (expected: 204)
+POST {{baseUrl}}/api/bookings/{{r9FirstId}}/cancel
+
+### R9.9 Third booking again: cancelled ones do not count (expected: 201)
+POST {{baseUrl}}/api/rooms/{{r9RoomAId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "carla",
+  "startUtc": "2030-02-01T20:00:00Z",
+  "endUtc": "2030-02-01T21:00:00Z",
+  "attendees": 2
+}
+
+### ---------- R10: capacity > 10 -> max 2 hours ----------
+
+### R10.1 Create a large room (capacity 20)
+# @name r10Large
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "R10 large room",
+  "capacity": 20
+}
+
+### R10.2 Create a room with capacity exactly 10 (not large)
+# @name r10Small
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "R10 small room",
+  "capacity": 10
+}
+
+###
+@r10LargeId = {{r10Large.response.body.$.id}}
+@r10SmallId = {{r10Small.response.body.$.id}}
+
+### R10.3 Large room, exactly 2 hours (expected: 201)
+POST {{baseUrl}}/api/rooms/{{r10LargeId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "elena",
+  "startUtc": "2030-03-01T08:00:00Z",
+  "endUtc": "2030-03-01T10:00:00Z",
+  "attendees": 15
+}
+
+### R10.4 Large room, 2h01m (expected: 400)
+POST {{baseUrl}}/api/rooms/{{r10LargeId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "florin",
+  "startUtc": "2030-03-01T12:00:00Z",
+  "endUtc": "2030-03-01T14:01:00Z",
+  "attendees": 15
+}
+
+### R10.5 Capacity 10 room, 3 hours (expected: 201, R6 4-hour limit still applies)
+POST {{baseUrl}}/api/rooms/{{r10SmallId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "florin",
+  "startUtc": "2030-03-01T12:00:00Z",
+  "endUtc": "2030-03-01T15:00:00Z",
+  "attendees": 5
+}
+
+### ---------- R11: cancel only if the booking starts at least 60 minutes from now ----------
+# Uses VS Code REST Client dynamic dates ({{$datetime iso8601 30 m}} = now + 30 minutes, UTC).
+
+### R11.1 Create a room
+# @name r11Room
+POST {{baseUrl}}/api/rooms
+Content-Type: application/json
+
+{
+  "name": "R11 room",
+  "capacity": 5
+}
+
+###
+@r11RoomId = {{r11Room.response.body.$.id}}
+
+### R11.2 Booking that starts in 30 minutes (expected: 201)
+# @name r11Soon
+POST {{baseUrl}}/api/rooms/{{r11RoomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "gabi",
+  "startUtc": "{{$datetime iso8601 30 m}}",
+  "endUtc": "{{$datetime iso8601 90 m}}",
+  "attendees": 2
+}
+
+###
+@r11SoonId = {{r11Soon.response.body.$.id}}
+
+### R11.3 Cancel it: starts in less than 60 minutes (expected: 409)
+POST {{baseUrl}}/api/bookings/{{r11SoonId}}/cancel
+
+### R11.4 Booking that starts in 3 hours (expected: 201)
+# @name r11Later
+POST {{baseUrl}}/api/rooms/{{r11RoomId}}/bookings
+Content-Type: application/json
+
+{
+  "bookedBy": "gabi",
+  "startUtc": "{{$datetime iso8601 3 h}}",
+  "endUtc": "{{$datetime iso8601 4 h}}",
+  "attendees": 2
+}
+
+###
+@r11LaterId = {{r11Later.response.body.$.id}}
+
+### R11.5 Cancel it: starts more than 60 minutes from now (expected: 204)
+POST {{baseUrl}}/api/bookings/{{r11LaterId}}/cancel

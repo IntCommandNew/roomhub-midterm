@@ -6,6 +6,10 @@ namespace RoomHub.Api.Domain.Rooms;
 // Aggregate root: owns its bookings and enforces the rules that span them.
 public sealed class Room
 {
+    // R10: rooms with more than 10 seats can be booked for at most 2 hours.
+    public const int LargeRoomCapacityThreshold = 10;
+    public static readonly TimeSpan LargeRoomMaxBookingDuration = TimeSpan.FromHours(2);
+
     private readonly List<Booking> _bookings = [];
 
     private Room() { } // for EF Core
@@ -15,6 +19,8 @@ public sealed class Room
     public int Capacity { get; private set; }
 
     public IReadOnlyCollection<Booking> Bookings => _bookings.AsReadOnly();
+
+    public bool IsLargeRoom => Capacity > LargeRoomCapacityThreshold;
 
     // R1: non-empty name, strictly positive capacity.
     public static Result<Room> Create(string? name, int capacity)
@@ -66,6 +72,10 @@ public sealed class Room
         if (range.Duration > Booking.MaxDuration)
             return BookingErrors.TooLong;
 
+        // R10: large rooms (capacity > 10) have a stricter limit; exactly 2 hours is allowed.
+        if (IsLargeRoom && range.Duration > LargeRoomMaxBookingDuration)
+            return BookingErrors.TooLongForLargeRoom;
+
         // R7: only ACTIVE bookings block; touching intervals do not overlap (half-open).
         if (_bookings.Any(b => b.IsActive && b.Range.Overlaps(range)))
             return BookingErrors.Overlapping;
@@ -79,13 +89,13 @@ public sealed class Room
         return booking;
     }
 
-    // R8
-    public Result<Unit> CancelBooking(Guid bookingId)
+    // R8 + R11 ("now" comes from TimeProvider, through the handler)
+    public Result<Unit> CancelBooking(Guid bookingId, DateTime nowUtc)
     {
         var booking = _bookings.FirstOrDefault(b => b.Id == bookingId);
         if (booking is null)
             return BookingErrors.NotFound;
 
-        return booking.Cancel();
+        return booking.Cancel(nowUtc);
     }
 }
